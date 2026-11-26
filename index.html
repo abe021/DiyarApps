@@ -562,7 +562,7 @@ fieldset.seg { margin: 0; padding: 4px; min-width: 0; display: flex; gap: 2px; b
    status:  "available" | "beta" | "soon"
             An app with "soon" status, or with an empty downloadUrl, shows a
             disabled "Coming Soon" button instead of a link.
-   Optional per app: version, size, updated ("YYYY-MM-DD").
+   Optional per app: id (use the same id on both platforms so the app counts once; defaults to the English name), version, size, updated ("YYYY-MM-DD").
    ========================================================================== */
 const CONFIG = {
   company: {
@@ -585,7 +585,7 @@ const applications = {
       name: { en: "Diyar Business Card", ar: "بطاقة أعمال ديار" },
       description: { en: KARTY_EN, ar: KARTY_AR },
       icon: "apps/karty.png",
-      downloadUrl: "https://abe021.github.io/DiyarApps/karty/IOS/karty.ipa",
+      downloadUrl: "itms-services://?action=download-manifest&url=https://abe021.github.io/DiyarApps/karty/IOS/manifest.plist",
       status: "available"
     },
     {
@@ -757,9 +757,11 @@ const I18N = {
   const platformOfApp = new Map();
   PLATFORMS.forEach(p => (applications[p] || []).forEach(app => {
     platformOfApp.set(app, p);
+    app._key = String(app.id || (typeof app.name === "string" ? app.name : (app.name.en || Object.values(app.name)[0])));
     app._hay = norm([allLangs(app.name), allLangs(app.description), app.version || ""].join(" "));
   }));
-  const totalApps = PLATFORMS.reduce((n, p) => n + (applications[p] || []).length, 0);
+  // An app available on both platforms (same id, or same English name) counts once.
+const totalApps = new Set(PLATFORMS.flatMap(p => (applications[p] || []).map(a => a._key))).size;
 
   /* ---- Static (data-i18n) text ---- */
   function applyStatic() {
@@ -870,7 +872,7 @@ const I18N = {
   }
   function render() {
     const filtering = state.q.trim() !== "";
-    let shown = 0;
+    const shownKeys = new Set();
 
     PLATFORMS.forEach(p => {
       const all = applications[p] || [];
@@ -881,7 +883,7 @@ const I18N = {
       section.hidden = !visible;
       grid.textContent = "";
       if (!visible) return;
-      shown += list.length;
+      list.forEach(a => shownKeys.add(a._key));
       $("#" + p + "Count").textContent = countLabel(list.length);
       if (list.length === 0) {
         grid.append(h("div", { class: "panel empty empty--inline", style: "grid-column:1/-1" }, h("p", {}, tr("sectionEmpty"))));
@@ -890,6 +892,7 @@ const I18N = {
       }
     });
 
+    const shown = shownKeys.size;
     const empty = $("#empty");
     empty.hidden = !(shown === 0 && filtering);
     $("#clearQ").hidden = state.q === "";
